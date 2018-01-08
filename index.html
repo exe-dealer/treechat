@@ -1,0 +1,251 @@
+<div class="queryplan">
+  <div id="app"></div>
+</div>
+
+<template id="tree-tmpl">
+  <div class="queryplan-tree">
+    <div class="queryplan-node">
+      <i class="message-user" v-text="node.user"></i>
+      <span v-text="node.message"></span>
+      <form class="reply-form"
+        v-on:submit.prevent="send({
+          message: $event.target.message.value,
+          parentid: node.id,
+        }), $event.target.message.value = null">
+        <input type="text" name="message" class="reply-input"
+          placeholder="reply" />
+      </form>
+    </div>
+    <div class="queryplan-children"
+      v-if="node.children.length">
+      <self v-for="child in node.children" :node="child"></self>
+    </div>
+  </div>
+</template>
+
+<style>
+.message-user {
+  font-style: italic;
+  color: #888;
+}
+.reply-form {
+  margin: 0;
+  padding: 0;
+  margin-top: .5em;
+}
+.reply-input {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid #ccc;
+}
+.reply-input:focus {
+  outline: none;
+}
+
+:root {
+  --pgbbcolor-bg: #eee;
+  --pgbbcolor-fg: #555;
+  --pgbbcolor-mute-fg: #888;
+  --pgbbcolor-strong-fg: #000;
+  --pgbbcolor-panel-bg: #fcfcfc;
+  --pgbbcolor-queryplan-edge: #aaa;
+  --pgbbcolor-queryplan-node-bg: #f4f4f4;
+  --pgbbcolor-table-border: #aaa;
+  --pgbbcolor-table-head-bg: #ddd;
+  --pgbbcolor-table-row-bg: #eee;
+  --pgbbcolor-danger: #ff4c4c;
+  --pgbbcolor-treenode-selected-bg: rgba(0, 0, 0, 0.1);
+  --pgbbcolor-treenode-subicon-default-fg: #fff;
+  --pgbbcolor-treenode-subicon-default-bg: #eee;
+  --pgbbcolor-treenode-subicon-view-bg: red;
+  --pgbbcolor-treenode-subicon-matview-bg: green;
+  --pgbbcolor-treenode-subicon-foreigntable-bg: purple;
+  --pgbbcolor-treenode-subicon-fkcolumn-bg: #ddd;
+  --pgbbcolor-treenode-groupsep: #ccc;
+  --pgbbcolor-treenode-ballon-bg: #fff;
+  --pgbbcolor-treenode-ballon-border: #ddd;
+  --pgbbcolor-treenode-ballon-shadow: #ddd;
+}
+
+:root {
+  font-family: tahoma;
+  --queryplan-spacing: .5em;
+  --queryplan-edge-width: 2px;
+}
+
+.queryplan {
+  display: flex;
+}
+
+.queryplan-tree {
+  text-align: center;
+  position: relative;
+  padding-top: var(--queryplan-spacing);
+  border-width: 1px;
+}
+
+.queryplan-tree:only-child {
+  padding-top: 0;
+}
+
+.queryplan-tree::before {
+  content: '';
+  position: absolute;
+  width: 50%;
+  left: 0;
+  top: 0;
+  border-color: var(--pgbbcolor-queryplan-edge);
+  border-width: var(--queryplan-edge-width);
+  border-top-style: solid;
+  border-right-style: solid;
+  height: var(--queryplan-spacing);
+}
+
+.queryplan-tree::after {
+  content: '';
+  position: absolute;
+  width: 50%;
+  right: 0;
+  top: 0;
+  border-color: var(--pgbbcolor-queryplan-edge);
+  border-width: var(--queryplan-edge-width);
+  border-top-style: solid;
+  height: var(--queryplan-spacing);
+}
+
+.queryplan-tree:first-child::before {
+  content: none;
+}
+
+.queryplan-tree:first-child::after {
+  border-left-style: solid;
+  border-top-left-radius: 4px;
+}
+
+.queryplan-tree:last-child::before {
+  border-top-right-radius: 4px;
+}
+
+.queryplan-tree:last-child::after {
+  content: none;
+}
+
+.queryplan-node {
+  border-width: var(--queryplan-edge-width);
+  border-style: solid;
+  border-color: var(--pgbbcolor-queryplan-edge);
+  display: inline-block;
+  min-width: 200px;
+  max-width: 500px;
+  margin: var(--queryplan-spacing);
+  margin-top: 0;
+  position: relative;
+  background-color: var(--pgbbcolor-queryplan-node-bg);
+  border-radius: 3px;
+  box-shadow: .1em .1em .1em var(--pgbbcolor-queryplan-node-shadow);
+  text-align: left;
+  padding: .3em;
+  font-size: 80%;
+}
+
+.queryplan-children::before {
+  position: absolute;
+  content: '';
+  top: calc(-1 * var(--queryplan-spacing));
+  left: 50%;
+  height: var(--queryplan-spacing);
+  border-left: var(--queryplan-edge-width) solid var(--pgbbcolor-queryplan-edge);
+}
+
+.queryplan-children {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.queryplan-header {
+  display: flex;
+}
+
+.queryplan-node_type {
+  text-transform: uppercase;
+  font-weight: bold;
+  flex: 1;
+}
+
+
+.queryplan-subheader {
+  font-size: 90%;
+}
+
+.queryplan-muted {
+  color: #aaa;
+}
+
+.queryplan-badge {
+  color: #fff;
+  background-color: var(--pgbbcolor-danger);
+  display: inline-block;
+  line-height: 1.4;
+  padding: 0 .3em;
+  border-radius: 3px;
+  margin-top: .3em;
+  margin-right: .3em;
+}
+
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.13/vue.js"></script>
+
+<script>
+
+  const ws = new WebSocket('ws://' + window.location.hostname + ':4001');
+
+  const Tree = Vue.extend({
+    template: '#tree-tmpl',
+    props: ['node'],
+    name: 'self',
+    methods: {
+      send(arg) {
+        ws.send(JSON.stringify({
+          ...arg,
+          id: String(+new Date()),
+          user: window.location.hash,
+        }));
+      }
+    }
+  });
+
+  const messages = {
+    root: {
+      user: '#root',
+      id: 'root',
+      message: 'hello',
+      children: [],
+    },
+  };
+
+  const app = new Tree({ 
+    propsData: {
+      node: messages.root,
+    }
+  });
+
+  ws.addEventListener('open', _ => {
+    app.$mount('#app');
+  });
+
+  ws.addEventListener('message', msg => {
+    msg = JSON.parse(msg.data);
+    msg.children = [];
+    messages[msg.id] = msg;
+    messages[msg.parentid].children.push(msg);
+  });
+
+  if (!window.location.hash) {
+    window.location.hash = ['isaac', 'albert', 'nikola', 'thomas'][Math.round(Math.random() * 3)];
+  }
+
+</script>

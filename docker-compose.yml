@@ -1,0 +1,8 @@
+version: '3'
+services:
+  web:
+    restart: unless-stopped
+    build: .
+    ports:
+      - 4001:4001
+      - 4000:4000
